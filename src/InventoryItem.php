@@ -2,18 +2,40 @@
 
 namespace App;
 
-class InventoryItem extends Item
+use App\Interfaces\ItemInterface;
+
+class InventoryItem extends Item implements ItemInterface
 {
     public const SULFURAS = 'Sulfuras, Hand of Ragnaros';
     public const BACKSTAGE_PASS = 'Backstage passes to a TAFKAL80ETC concert';
     public const BRIE = 'Aged Brie';
 
     /**
+     * @var int The lowest possible quality
+     */
+    public const MIN_QUALITY = 0;
+
+    /**
+     * @var int The highest possible quality for non-legendary items
+     */
+    public const MAX_QUALITY = 50;
+
+    /**
      * @var bool Whether or not the item has been conjured
      */
     public $conjured;
 
-    public function __construct($name, $quality, $sellIn, $conjured = false)
+    /**
+     * Create a new instance of the InventoryItem class
+     *
+     * @param string $name - Name of the item
+     * @param int $quality - The current quality
+     * @param int $sellIn - Number of days until the sell by date
+     * @param bool $conjured - whether the item is conjured or not
+     *
+     * @return void
+     */
+    public function __construct(string $name, int $quality, int $sellIn, bool $conjured = false)
     {
         parent::__construct($name, $quality, $sellIn);
 
@@ -25,7 +47,7 @@ class InventoryItem extends Item
      *
      * @return void
      */
-    public function updateSellIn()
+    public function decreaseSellIn()
     {
         if ($this->name !== self::SULFURAS) {
             $this->sellIn--;
@@ -37,36 +59,16 @@ class InventoryItem extends Item
      *
      * @return void
      */
-    public function updateQuality()
+    public function handle()
     {
-        $degradeAmount = 0; // Total amount to reduce the quality by after mutators
 
-        if ($this->doesDegrade() && $this->quality > 0) {
-            if ($this->quality !== 0) {
-                $degradeAmount++;
-            }
-
-            if ($this->sellIn <= 0) {
-                $degradeAmount++;
-            }
-
-            if ($this->conjured) {
-                $degradeAmount *= 2;
-            }
-
-            $this->quality -= $degradeAmount;
-
-            if ($this->quality < 0) {
-                $this->quality = 0;
-            }
+        if ($this->doesDegrade() && $this->quality > self::MIN_QUALITY) {
+            $this->updateNormal();
         } else {
-            if ($this->name === self::BACKSTAGE_PASS) {
-                $this->updateBackstagePass();
-            }
-            if ($this->name === self::BRIE) {
-                $this->updateBrie();
-            }
+            $this->updateBackstagePass();
+            $this->updateBrie();
         }
+        $this->decreaseSellIn();
     }
 
     /**
@@ -82,15 +84,41 @@ class InventoryItem extends Item
     }
 
     /**
+     * If the current item is a non-exempt item, update the quality details
+     *
+     * @return void
+     */
+    private function updateNormal()
+    {
+        $degradeAmount = 1; // Total amount to reduce the quality by after mutators
+        if ($this->sellIn <= 0) {
+            $degradeAmount++;
+        }
+
+        if ($this->conjured) {
+            $degradeAmount *= 2;
+        }
+
+        $this->quality -= $degradeAmount;
+
+        if ($this->quality < self::MIN_QUALITY) {
+            $this->quality = self::MIN_QUALITY;
+        }
+    }
+
+    /**
      * If the current item is Aged Brie, update the quality details
      *
      * @return void
      */
     private function updateBrie()
     {
-        if ($this->quality < 50) {
+        if ($this->name !== self::BRIE) {
+            return;
+        }
+        if ($this->quality < self::MAX_QUALITY) {
             $this->quality++;
-            if ($this->sellIn <= 0 && $this->quality < 50) {
+            if ($this->sellIn <= 0 && $this->quality < self::MAX_QUALITY) {
                 $this->quality++;
             }
         }
@@ -103,17 +131,21 @@ class InventoryItem extends Item
      */
     private function updateBackstagePass()
     {
+        if ($this->name !== self::BACKSTAGE_PASS) {
+            return;
+        }
+
         $this->quality++;
         if ($this->sellIn <= 0) {
-            $this->quality = 0;
+            $this->quality = self::MIN_QUALITY;
         } elseif ($this->sellIn <= 5) {
             $this->quality += 2;
         } elseif ($this->sellIn <= 10) {
             $this->quality += 1;
         }
 
-        if ($this->quality > 50) {
-            $this->quality = 50;
+        if ($this->quality > self::MAX_QUALITY) {
+            $this->quality = self::MAX_QUALITY;
         }
     }
 }

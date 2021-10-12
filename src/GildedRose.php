@@ -43,8 +43,7 @@ class GildedRose
     public function nextDay()
     {
         foreach ($this->items as $item) {
-            $item->updateQuality();
-            $item->updateSellIn();
+            $item->handle();
         }
     }
 }
